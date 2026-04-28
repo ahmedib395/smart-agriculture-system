@@ -4,13 +4,15 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
 
-const char* ssid = "We";
-const char* password = "Mazen2005";
+// ====== CONFIG (CHANGE THESE) ======
+const char* ssid = "YOUR_WIFI_NAME";
+const char* password = "YOUR_WIFI_PASSWORD";
 
-const char* mqtt_server = "491651ab41c341269c0b6942b3a72aaf.s1.eu.hivemq.cloud";
+const char* mqtt_server = "YOUR_HIVEMQ_URL";
 const int mqtt_port = 8883;
-const char* mqtt_user = "ahmedhassan";
-const char* mqtt_pass = "Sas51015";
+const char* mqtt_user = "YOUR_MQTT_USERNAME";
+const char* mqtt_pass = "YOUR_MQTT_PASSWORD";
+// ==================================
 
 const char* TOPIC_MOISTURE = "plantguard_x7k92mf/moisture";
 const char* TOPIC_PUMP = "plantguard_x7k92mf/pump";

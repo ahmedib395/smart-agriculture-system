@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Plant Watering System</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: linear-gradient(rgba(4,33,17,0.93), rgba(4,33,17,0.93));
+      color: #dfffe8;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .logo { font-size: 42px; margin-bottom: 5px; }
+
+    h1 {
+      font-size: 56px;
+      line-height: 0.95;
+      margin: 0;
+      font-family: Georgia, serif;
+      color: #eaffef;
+    }
+
+    h1 span { color: #3cff86; }
+
+    .subtitle {
+      margin-top: 20px;
+      letter-spacing: 4px;
+      color: #74c48c;
+      font-size: 14px;
+    }
+
+    .connection {
+      margin: 35px auto;
+      color: #4eff8a;
+      letter-spacing: 2px;
+      font-size: 14px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      background: #4eff8a;
+      border-radius: 50%;
+      box-shadow: 0 0 12px #4eff8a;
+      margin-right: 8px;
+    }
+
+    .dashboard {
+      max-width: 900px;
+      margin: auto;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    .card {
+      background: rgba(6,37,18,0.85);
+      border: 1px solid rgba(100,255,150,0.18);
+      border-radius: 22px;
+      padding: 28px;
+      text-align: left;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+    }
+
+    .wide { grid-column: span 2; }
+
+    .label {
+      color: #64bf7a;
+      letter-spacing: 5px;
+      font-size: 13px;
+      margin-bottom: 22px;
+    }
+
+    .big-value {
+      font-size: 70px;
+      font-weight: bold;
+      color: #4eff8a;
+      font-family: Georgia, serif;
+    }
+
+    .bar {
+      height: 9px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 30px;
+      overflow: hidden;
+      margin-top: 25px;
+    }
+
+    .bar-fill {
+      height: 100%;
+      width: 0%;
+      background: #4eff8a;
+      border-radius: 30px;
+      transition: 0.4s;
+    }
+
+    .pump-status {
+      font-size: 46px;
+      color: #4eff8a;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 10px 22px;
+      border-radius: 25px;
+      background: rgba(255,70,70,0.25);
+      border: 1px solid #ff5c5c;
+      color: #ff8d8d;
+      font-weight: bold;
+      letter-spacing: 2px;
+    }
+
+    .badge.on {
+      background: rgba(70,255,130,0.2);
+      border-color: #4eff8a;
+      color: #4eff8a;
+    }
+
+    .mode {
+      margin-top: 20px;
+      color: #74c48c;
+      letter-spacing: 2px;
+    }
+
+    .buttons {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+    }
+
+    button {
+      border: none;
+      padding: 18px;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: bold;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      color: white;
+      transition: 0.25s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      filter: brightness(1.15);
+    }
+
+    .btn-on { background: #157a38; border: 1px solid #3cff86; }
+    .btn-off { background: #941f1f; border: 1px solid #ff6464; }
+    .btn-auto { background: #1f4978; border: 1px solid #64a7ff; }
+
+    .last-update {
+      margin-top: 28px;
+      color: #57996c;
+      font-size: 14px;
+    }
+
+    @media (max-width: 750px) {
+      h1 { font-size: 42px; }
+      .dashboard { grid-template-columns: 1fr; }
+      .wide { grid-column: span 1; }
+      .buttons { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="logo">🌿</div>
+  <h1>Plant <span>Watering</span><br>System</h1>
+  <div class="subtitle">REMOTE MONITORING & CONTROL</div>
+
+  <div class="connection">
+    <span class="dot"></span>
+    <span id="connectionText">CONNECTING TO BACKEND...</span>
+  </div>
+
+  <div class="dashboard">
+
+    <div class="card">
+      <div class="label">SOIL MOISTURE</div>
+      <div class="big-value" id="moisture">--%</div>
+      <div class="bar">
+        <div class="bar-fill" id="barFill"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="label">PUMP STATUS</div>
+      <div class="pump-status" id="pumpText">--</div>
+      <span class="badge" id="pumpBadge">UNKNOWN</span>
+      <div class="mode">Mode: <span id="modeText">MANUAL</span></div>
+    </div>
+
+    <div class="card wide">
+      <div class="label">PUMP CONTROL</div>
+      <div class="buttons">
+        <button class="btn-on" onclick="sendPump(1)">💧 PUMP ON</button>
+        <button class="btn-off" onclick="sendPump(0)">🛑 PUMP OFF</button>
+        <button class="btn-auto" onclick="autoMode()">🔄 AUTO MODE</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="last-update">
+    Last update: <span id="lastUpdate">never</span>
+  </div>
+
+ <script>
+  const socket = new WebSocket("wss://smartagriculturebackend-production-63f7.up.railway.app");
+
+  const connectionText = document.getElementById("connectionText");
+  const moisture = document.getElementById("moisture");
+  const barFill = document.getElementById("barFill");
+  const pumpText = document.getElementById("pumpText");
+  const pumpBadge = document.getElementById("pumpBadge");
+  const modeText = document.getElementById("modeText");
+  const lastUpdate = document.getElementById("lastUpdate");
+
+  socket.onopen = () => {
+    connectionText.innerText = "CONNECTED TO BACKEND";
+    console.log("WebSocket connected");
+  };
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    console.log("Received:", data);
+
+    if (data.type === "moisture") {
+      let value = Number(data.value);
+      moisture.innerText = value + "%";
+      barFill.style.width = value + "%";
+      lastUpdate.innerText = new Date().toLocaleTimeString();
+    }
+
+    if (data.type === "status") {
+      let state = data.value;
+
+      moisture.innerText = state.moisture + "%";
+      barFill.style.width = state.moisture + "%";
+
+      updatePumpUI(state.pump, state.mode);
+      lastUpdate.innerText = new Date().toLocaleTimeString();
+    }
+  };
+
+  socket.onclose = () => {
+    connectionText.innerText = "DISCONNECTED FROM BACKEND";
+  };
+
+  socket.onerror = () => {
+    connectionText.innerText = "CONNECTION ERROR";
+  };
+
+  function updatePumpUI(pump, mode) {
+    pumpText.innerText = pump;
+    pumpBadge.innerText = pump === "ON" ? "RUNNING" : "STOPPED";
+
+    if (pump === "ON") {
+      pumpBadge.classList.add("on");
+    } else {
+      pumpBadge.classList.remove("on");
+    }
+
+    modeText.innerText = mode;
+    lastUpdate.innerText = new Date().toLocaleTimeString();
+  }
+
+  function sendPump(value) {
+    console.log("Button clicked:", value);
+
+    const command = value === 1 ? "pump_on" : "pump_off";
+
+    socket.send(JSON.stringify({
+      type: "pump_command",
+      value: command
+    }));
+
+    if (value === 1) {
+      updatePumpUI("ON", "MANUAL");
+    } else {
+      updatePumpUI("OFF", "MANUAL");
+    }
+  }
+
+  function autoMode() {
+    console.log("Auto mode clicked");
+
+    socket.send(JSON.stringify({
+      type: "pump_command",
+      value: "auto_mode"
+    }));
+
+    modeText.innerText = "AUTO";
+    lastUpdate.innerText = new Date().toLocaleTimeString();
+  }
+</script> 
+
+
+</body>
+</html>

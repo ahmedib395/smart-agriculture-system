@@ -12,12 +12,13 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
-const mqttClient = mqtt.connect("mqtts://491651ab41c341269c0b6942b3a72aaf.s1.eu.hivemq.cloud:8883", {
-  username: "ahmedhassan",
-  password: "Sas51015",
+// ====== CONFIG (CHANGE THESE) ======
+const mqttClient = mqtt.connect("mqtts://YOUR_HIVEMQ_URL:8883", {
+  username: "YOUR_USERNAME",
+  password: "YOUR_PASSWORD",
   rejectUnauthorized: false
 });
-
+// ==================================
 const TOPIC_MOISTURE = "plantguard_x7k92mf/moisture";
 const TOPIC_PUMP = "plantguard_x7k92mf/pump";
 const TOPIC_STATUS = "plantguard_x7k92mf/status";

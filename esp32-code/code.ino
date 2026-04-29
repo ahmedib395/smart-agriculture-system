@@ -1,37 +1,39 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
-#include <Wire.h>
-#include <LiquidCrystal_I2C.h>
 
-// ====== CONFIG (CHANGE THESE) ======
+// ================= CONFIGURATION =================
+// Replace these values before uploading to ESP32
+
 const char* ssid = "YOUR_WIFI_NAME";
 const char* password = "YOUR_WIFI_PASSWORD";
 
-const char* mqtt_server = "YOUR_HIVEMQ_URL";
+const char* mqtt_server = "YOUR_HIVEMQ_CLUSTER_URL";
 const int mqtt_port = 8883;
 const char* mqtt_user = "YOUR_MQTT_USERNAME";
 const char* mqtt_pass = "YOUR_MQTT_PASSWORD";
-// ==================================
 
+// ================= MQTT TOPICS =================
 const char* TOPIC_MOISTURE = "plantguard_x7k92mf/moisture";
 const char* TOPIC_PUMP = "plantguard_x7k92mf/pump";
 const char* TOPIC_STATUS = "plantguard_x7k92mf/status";
 
+// ================= HARDWARE PINS =================
 const int sensorPin = 35;
 const int relayPin = 5;
 
+// ================= SETTINGS =================
 const int DRY_VALUE = 3500;
 const int WET_VALUE = 1500;
 const int AUTO_THRESHOLD = 40;
 
+// Relay is active LOW
 const int PUMP_ON = LOW;
 const int PUMP_OFF = HIGH;
 
 bool pumpState = false;
 bool autoModeState = false;
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);
 WiFiClientSecure espClient;
 PubSubClient client(espClient);
 
@@ -60,6 +62,7 @@ void publishStatus(int percent) {
 
   client.publish(TOPIC_STATUS, payload.c_str());
 
+  Serial.print("Status sent: ");
   Serial.println(payload);
 }
 
@@ -72,9 +75,10 @@ void setup_wifi() {
     Serial.print(".");
   }
 
-  Serial.println("\nWiFi Connected");
-  lcd.clear();
-  lcd.print("WiFi Connected");
+  Serial.println();
+  Serial.println("WiFi Connected");
+  Serial.print("ESP32 IP: ");
+  Serial.println(WiFi.localIP());
 }
 
 void callback(char* topic, byte* payload, unsigned int length) {
@@ -107,9 +111,15 @@ void reconnect() {
   while (!client.connected()) {
     Serial.print("Connecting MQTT...");
 
-    if (client.connect("ESP32_Plant_Client", mqtt_user, mqtt_pass)) {
+    String clientId = "ESP32_Plant_Client_";
+    clientId += String(random(1000, 9999));
+
+    if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
       Serial.println("Connected");
       client.subscribe(TOPIC_PUMP);
+
+      Serial.print("Subscribed to: ");
+      Serial.println(TOPIC_PUMP);
     } else {
       Serial.print("Failed rc=");
       Serial.println(client.state());
@@ -123,10 +133,6 @@ void setup() {
 
   pinMode(relayPin, OUTPUT);
   pumpOff();
-
-  lcd.init();
-  lcd.backlight();
-  lcd.print("Connecting...");
 
   setup_wifi();
 
@@ -156,15 +162,8 @@ void loop() {
     client.publish(TOPIC_MOISTURE, String(percent).c_str());
     publishStatus(percent);
 
-    lcd.setCursor(0, 0);
-    lcd.print("Moisture: ");
-    lcd.print(percent);
-    lcd.print("%  ");
-
-    lcd.setCursor(0, 1);
-    lcd.print("Pump:");
-    lcd.print(pumpState ? "ON " : "OFF");
-    lcd.print(autoModeState ? " A" : " M");
+    Serial.print("Moisture sent to website: ");
+    Serial.print(percent);
+    Serial.println("%");
   }
-} 
-
+}

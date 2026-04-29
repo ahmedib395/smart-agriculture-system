@@ -14,7 +14,7 @@ This folder contains the web dashboard for the Smart Irrigation System.
 The frontend is deployed on Netlify.
 
 Live website 
- https://smart-agriculture-iot.neltify.app/
+ https://smart-agriculture-iot.netlify.app/
 
 ## Communication
 The frontend does not connect directly to ESP32.  

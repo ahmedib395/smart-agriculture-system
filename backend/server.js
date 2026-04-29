@@ -1,3 +1,4 @@
+require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const WebSocket = require("ws");
@@ -12,13 +13,12 @@ const wss = new WebSocket.Server({ server });
 
 const PORT = process.env.PORT || 3000;
 
-// ====== CONFIG (CHANGE THESE) ======
-const mqttClient = mqtt.connect("mqtts://YOUR_HIVEMQ_URL:8883", {
-  username: "YOUR_USERNAME",
-  password: "YOUR_PASSWORD",
+
+const mqttClient = mqtt.connect(process.env.MQTT_HOST, {
+  username: process.env.MQTT_USER,
+  password: process.env.MQTT_PASS,
   rejectUnauthorized: false
 });
-// ==================================
 const TOPIC_MOISTURE = "plantguard_x7k92mf/moisture";
 const TOPIC_PUMP = "plantguard_x7k92mf/pump";
 const TOPIC_STATUS = "plantguard_x7k92mf/status";

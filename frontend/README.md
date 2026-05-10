@@ -1,23 +1,69 @@
+# PlantGuard Frontend 🌿
 
-# Frontend - Smart Irrigation System
+A modern real-time web dashboard for the PlantGuard Smart Irrigation System.
 
-This folder contains the web dashboard for the Smart Irrigation System.
+This frontend provides live monitoring and remote control for the ESP32-based irrigation system using WebSockets and MQTT communication through the backend server.
+
+---
 
 ## Features
-- Displays live soil moisture percentage
-- Shows pump status
-- Manual pump ON/OFF control
-- Auto mode button
-- Connects to the backend server using WebSocket
 
-## Hosting
-The frontend is deployed on Netlify.
+### Real-Time Soil Monitoring
+- Live soil moisture percentage display
+- Dynamic moisture progress bar
+- Moisture condition indicators:
+  - 🟢 Good moisture
+  - 🟡 Moderate moisture
+  - 🔴 Dry soil warning
 
-Live website 
- https://smart-agriculture-iot.netlify.app/
+### Pump Control System
+- Turn water pump ON/OFF remotely
+- Automatic irrigation mode
+- Real-time pump status updates
+- Pump runtime progress indicator
 
-## Communication
-The frontend does not connect directly to ESP32.  
-It sends commands to the backend server using WebSocket.
+### Smart Scheduling
+- Schedule watering by:
+  - Specific weekday
+  - Daily mode
+  - One-time watering
+  - Weekly repeating schedules
+- Custom watering duration
+- "This Week" / "Next Week" scheduling logic
+- Live countdown timer until next watering cycle
 
-Frontend → Backend → MQTT → ESP32
+### Moisture History Analytics
+- Real-time moisture chart using Chart.js
+- Historical moisture trend visualization
+- Auto-colored chart based on soil condition
+
+### System Information Panel
+- ESP32 connection monitoring
+- Last seen tracker
+- Watering count statistics
+- Next scheduled irrigation display
+
+### Responsive UI
+- Mobile-friendly responsive layout
+- Futuristic glassmorphism design
+- Animated background effects
+- Real-time connection status indicator
+
+---
+
+## Technologies Used
+
+- HTML5
+- CSS3
+- Vanilla JavaScript
+- WebSocket API
+- Chart.js
+
+---
+
+## Frontend Architecture
+
+The frontend communicates with the backend server using secure WebSockets:
+
+```text
+ESP32 → MQTT Broker → Node.js Backend → WebSocket → Frontend Dashboard

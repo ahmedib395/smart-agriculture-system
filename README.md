@@ -1,7 +1,7 @@
 # PlantGuard 🌿
 ## Smart Irrigation & Remote Plant Monitoring System
 
-PlantGuard is a full-stack IoT smart irrigation system built using an ESP32, MQTT communication, a Node.js backend bridge, and a real-time web dashboard. The system monitors soil moisture in real-time and controls a water pump remotely or automatically based on configurable thresholds and weekly irrigation schedules.
+PlantGuard is a full-stack IoT smart irrigation system built using an ESP32, MQTT communication, a Node.js backend bridge deployed on Railway, and a real-time web dashboard. The system monitors soil moisture in real-time and controls a water pump remotely or automatically based on configurable thresholds and weekly irrigation schedules.
 
 ---
 
@@ -12,7 +12,7 @@ PlantGuard is a full-stack IoT smart irrigation system built using an ESP32, MQT
 - ⏰ Smart weekly irrigation scheduling with day/time/duration configuration
 - 📊 Live moisture history chart (last 12 readings)
 - 📡 MQTT + WebSocket real-time communication
-- 🌐 Locally-hosted web dashboard
+- 🌐 Cloud-connected web dashboard (backend hosted on Railway)
 - 🔄 WebSocket auto-reconnect logic
 - 📱 Responsive modern UI
 
@@ -21,79 +21,83 @@ PlantGuard is a full-stack IoT smart irrigation system built using an ESP32, MQT
 ## System Architecture
 
 ```text
-┌─────────────────┐      MQTT (TLS)    ┌─────────────────┐
-│                 │ ──────────────────► │                 │
-│   ESP32 Device  │                     │  HiveMQ Cloud   │
-│ (Sensor + Pump) │ ◄────────────────── │  MQTT Broker    │
-│                 │      MQTT (TLS)     │                 │
-└─────────────────┘                     └────────┬────────┘
-                                                 │
-                                                 ▼
-                                        ┌─────────────────┐
-                                        │ Node.js Backend │
-                                        │ MQTT ↔ WS Bridge│
-                                        │  localhost:3000  │
-                                        └────────┬────────┘
-                                                 │ WebSocket
-                                                 ▼
-                                        ┌─────────────────┐
-                                        │ Frontend Web UI │
-                                        │  (index.html)   │
-                                        │  opened locally │
-                                        └─────────────────┘
+┌─────────────────┐    MQTT/TLS (8883)   ┌─────────────────┐
+│                 │ ──────────────────►  │                 │
+│   ESP32 Device  │                      │  HiveMQ Cloud   │
+│ (Sensor + Pump) │ ◄──────────────────  │  MQTT Broker    │
+│                 │    MQTT/TLS (8883)   │                 │
+└─────────────────┘                      └────────┬────────┘
+                                                  │
+                                                  ▼
+                                         ┌─────────────────────────────────┐
+                                         │        Node.js Backend          │
+                                         │       MQTT ↔ WS Bridge          │
+                                         │  Deployed on Railway (cloud)    │
+                                         └────────────────┬────────────────┘
+                                                          │ WebSocket (WSS)
+                                                          ▼
+                                         ┌─────────────────────────────────┐
+                                         │       Frontend Web UI           │
+                                         │   index.html (opened locally)   │
+                                         │  connects to Railway backend    │
+                                         └─────────────────────────────────┘
 ```
 
 ---
 
 ## How It Works
 
-The ESP32 reads soil moisture every 3 seconds and publishes readings to HiveMQ Cloud over MQTT. The Node.js backend subscribes to those MQTT topics and forwards all data to the browser over a WebSocket connection. Commands from the dashboard (pump on/off, schedules) travel the reverse path: browser → WebSocket → backend → MQTT → ESP32.
+The ESP32 reads soil moisture every 3 seconds and publishes readings to HiveMQ Cloud over MQTT. The Node.js backend — deployed on Railway — subscribes to those MQTT topics and forwards all data to the browser over a secure WebSocket connection (`wss://`). Commands from the dashboard (pump on/off, schedules, threshold changes) travel the reverse path: browser → WebSocket → backend → MQTT → ESP32.
 
-The frontend is a plain HTML file opened directly in the browser — no web server needed for the frontend itself. The backend runs locally on your machine.
+The frontend is a plain `index.html` file opened directly in the browser — no frontend server needed. It connects to the cloud-hosted Railway backend automatically.
 
 ---
 
 ## Components
 
 ### ESP32 Firmware
+
 - Reads soil moisture sensor (averaged over 10 samples for noise reduction)
-- Controls relay/pump based on commands or thresholds
-- Executes weekly irrigation schedules with NTP time sync (UTC+2 Egypt)
+- Controls relay/pump based on manual commands, auto-threshold, or schedule
+- Executes weekly irrigation schedules with NTP time sync (UTC+2 — Egypt)
 - Publishes full status JSON to MQTT every 3 seconds
 - Subscribes to pump command topic for remote control
+- Supports dynamic threshold updates from the dashboard
 
-**Libraries required:**
+**Libraries required (install via Arduino Library Manager):**
 - PubSubClient
 - ArduinoJson
-- WiFiClientSecure
+- WiFiClientSecure (included with ESP32 core)
 
 ---
 
 ### Backend Server (Node.js)
-Acts as a bridge between HiveMQ Cloud (MQTT) and the browser (WebSocket).
+
+Acts as a bridge between HiveMQ Cloud (MQTT) and the browser (WebSocket). Deployed on **Railway**.
 
 - Connects to HiveMQ over MQTTS (port 8883)
 - Subscribes to moisture and status topics
-- Caches last known status — new dashboard connections immediately receive current state
-- Forwards pump commands and schedule commands from the browser to ESP32 via MQTT
-- Runs on **localhost:3000**
+- Caches last known status — new dashboard connections immediately receive current state instead of showing blank values
+- Forwards pump commands, schedule commands, and threshold changes from the browser to ESP32 via MQTT
+- Credentials loaded from environment variables set in Railway dashboard
 
-**Technologies:** Node.js, Express, MQTT.js, ws, dotenv
+**Technologies:** Node.js, Express, MQTT.js, ws, cors
 
 ---
 
 ### Frontend Dashboard
-A single `index.html` file opened directly in the browser. Connects to the backend WebSocket at `ws://localhost:3000` (or your deployed backend URL).
+
+A single `index.html` file opened directly in your browser. Connects to the Railway backend via WebSocket — no local server required.
 
 **Features:**
-- Live soil moisture percentage + color-coded status bar
+- Live soil moisture percentage with color-coded bar (green / amber / red)
 - Pump ON / OFF / AUTO mode buttons
-- Auto-mode threshold slider
-- Weekly schedule: pick day (or every day), this week / next week toggle, time, duration, repeat mode
-- Countdown timer with days+hours display (e.g. `5d 03:22:11`)
-- Moisture history line chart (last 12 readings)
-- System info panel: last sensor reading time, watering count today, next scheduled run
-- ESP32 connection tracking
+- Auto-mode moisture threshold slider
+- Weekly schedule: pick day (Sun–Sat or Every Day), This Week / Next Week toggle, start time, duration, repeat mode (Once / Weekly)
+- Countdown timer — shows `Xd HH:MM:SS` format when more than 24 hours remain
+- Moisture history line chart (last 12 readings, color shifts with moisture level)
+- System info panel: last sensor reading time, today's watering count, next scheduled run
+- ESP32 last-seen tracking with stale connection indicator
 
 **Technologies:** HTML5, CSS3, Vanilla JavaScript, Chart.js
 
@@ -104,7 +108,7 @@ A single `index.html` file opened directly in the browser. Connects to the backe
 | Component | Description |
 |---|---|
 | ESP32 Development Board | Main microcontroller |
-| Capacitive Soil Moisture Sensor | Analog moisture readings (GPIO 35) |
+| Capacitive Soil Moisture Sensor | Analog moisture readings |
 | Relay Module | Switches the water pump |
 | Water Pump | Performs irrigation |
 | Power Supply | Matched to pump voltage |
@@ -122,7 +126,7 @@ A single `index.html` file opened directly in the browser. Connects to the backe
 
 ## Sensor Calibration
 
-The firmware maps raw ADC values to a 0–100% moisture percentage:
+The firmware maps raw ADC values to 0–100% moisture. Defaults:
 
 | State | Raw ADC Value |
 |---|---|
@@ -160,46 +164,41 @@ MQTT_USER=your_username
 MQTT_PASS=your_password
 ```
 
-Run the server:
-
-```bash
-node server.js
-```
-
-The backend starts on **http://localhost:3000**. Keep this running while using the dashboard.
+**To deploy on Railway:**
+- Push the backend folder to GitHub
+- Create a new Railway project and link the repo
+- Add the environment variables above in the Railway dashboard under Variables
+- Railway auto-deploys on every push
 
 ---
 
 ### 3. ESP32 Setup
 
-Install the following Arduino libraries via Library Manager:
-- PubSubClient
-- ArduinoJson
-
-Create a `secrets.h` file in the `esp32-code/` folder:
+Open `esp32-code/plantguard.ino` and fill in your credentials at the top of the file:
 
 ```cpp
-#pragma once
+// ── WiFi ──
+const char* ssid     = "YOUR_WIFI_NAME";      // put your WiFi name here
+const char* password = "YOUR_WIFI_PASSWORD";  // put your WiFi password here
 
-const char* WIFI_SSID     = "your_wifi_name";
-const char* WIFI_PASSWORD = "your_wifi_password";
-
-const char* MQTT_SERVER = "your-hivemq-cluster-url";
-const int   MQTT_PORT   = 8883;
-
-const char* MQTT_USER = "your_mqtt_username";
-const char* MQTT_PASS = "your_mqtt_password";
+// ── HiveMQ Cloud ──
+const char* mqtt_server = "YOUR_HIVEMQ_CLUSTER_URL"; // put your HiveMQ URL here
+const int   mqtt_port   = 8883;
+const char* mqtt_user   = "YOUR_MQTT_USERNAME";       // put your MQTT username here
+const char* mqtt_pass   = "YOUR_MQTT_PASSWORD";       // put your MQTT password here
 ```
 
-Upload `plantguard.ino` to your ESP32.
+Upload `plantguard.ino` to your ESP32 via Arduino IDE.
+
+> ⚠️ Never commit real credentials to GitHub. Add the `.ino` file to `.gitignore` or use a separate `secrets.h` if sharing publicly.
 
 ---
 
 ### 4. Frontend Setup
 
-No server needed. Just open `frontend/index.html` directly in your browser.
+No server needed. Open `frontend/index.html` directly in your browser.
 
-Make sure the backend is running first so the WebSocket connection succeeds.
+The dashboard connects automatically to the Railway backend via WebSocket. Make sure the backend is deployed and running before opening the dashboard.
 
 ---
 
@@ -209,38 +208,40 @@ Make sure the backend is running first so the WebSocket connection succeeds.
 
 | Topic | Content |
 |---|---|
-| `plantguard_x7k92mf/status` | Full JSON status (moisture, pump state, mode, schedule info) |
+| `plantguard_x7k92mf/status` | Full JSON: moisture, pump state, mode, schedule, threshold |
 | `plantguard_x7k92mf/moisture` | Raw moisture percentage (plain text) |
 
 ### Subscribed by ESP32
 
-| Topic | Commands accepted |
+| Topic | Accepted values |
 |---|---|
-| `plantguard_x7k92mf/pump` | `pump_on`, `pump_off`, `auto_mode`, or JSON schedule commands |
+| `plantguard_x7k92mf/pump` | `pump_on`, `pump_off`, `auto_mode`, or JSON commands below |
 
-### Schedule Command Format (JSON via pump topic)
+### JSON Command Format
 
 ```json
+// Set schedule
 { "cmd": "set_schedule", "day": 6, "hour": 7, "minute": 30, "duration": 300, "repeat": "weekly" }
+
+// Clear schedule
 { "cmd": "clear_schedule" }
+
+// Update auto threshold
+{ "cmd": "set_threshold", "value": 40 }
 ```
 
 `day`: -1 = every day, 0 = Sunday … 6 = Saturday  
-`duration`: seconds
+`duration`: in seconds
 
 ---
 
 ## Scheduling
 
-The dashboard supports weekly or daily irrigation schedules:
-
 - Pick a **specific day** (Sun–Sat) or **Every Day**
-- When a specific day is selected, choose **This Week** or **Next Week** to disambiguate
-- Set **start time** and **duration** in minutes
-- Choose **Once** or **Weekly** repeat mode
-- Countdown displays as `Xd HH:MM:SS` when more than 24 hours remain
-
-Schedule state is echoed back in the ESP32 status JSON, so the countdown survives a page refresh.
+- When a specific day is selected, choose **This Week** or **Next Week** to avoid ambiguity
+- If you pick "This Week" and the time has already passed today, the dashboard shows an error and highlights "Next Week" automatically
+- Set **start time**, **duration** in minutes, and **repeat mode** (Once or Weekly)
+- The ESP32 echoes schedule state back in its status JSON so the countdown survives a page refresh
 
 ---
 
@@ -250,19 +251,16 @@ Schedule state is echoed back in the ESP32 status JSON, so the countdown survive
 smart-agriculture-system/
 │
 ├── esp32-code/
-│   ├── plantguard.ino       # Main firmware
-│   ├── secrets.h            # WiFi + MQTT credentials (not committed)
-│   └── README.md
+│   └── plantguard.ino       # Main firmware (fill in credentials at top)
 │
 ├── backend/
 │   ├── server.js            # MQTT ↔ WebSocket bridge
 │   ├── package.json
-│   ├── .env                 # Backend credentials (not committed)
-│   └── README.md
+│   ├── .env                 # Credentials — never commit this
+│   └── .gitignore
 │
 ├── frontend/
-│   ├── index.html           # Full dashboard (open directly in browser)
-│   └── README.md
+│   └── index.html           # Full dashboard — open directly in browser
 │
 └── README.md
 ```
@@ -271,10 +269,9 @@ smart-agriculture-system/
 
 ## Security Notes
 
-- Never commit `secrets.h` or `.env` to version control
-- Add both to `.gitignore`
+- Never commit `.env` or real credentials to version control — add `.env` to `.gitignore`
 - The ESP32 uses TLS (`WiFiClientSecure`) but skips certificate verification (`setInsecure()`) — acceptable for private/home use
-- HiveMQ Cloud credentials should be rotated if ever exposed
+- The backend reads credentials from environment variables set in Railway, not hardcoded
 
 ---
 
@@ -282,7 +279,7 @@ smart-agriculture-system/
 
 - Multi-plant / multi-zone support
 - Database logging for historical moisture data
-- Mobile app (React Native / Flutter)
+- Mobile app
 - Push notifications when soil is critically dry
 - OTA firmware updates
 - Weather API integration to skip watering after rain

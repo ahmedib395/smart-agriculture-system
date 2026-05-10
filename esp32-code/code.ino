@@ -20,49 +20,45 @@ const char* TOPIC_MOISTURE = "plantguard_x7k92mf/moisture";
 const char* TOPIC_PUMP     = "plantguard_x7k92mf/pump";
 const char* TOPIC_STATUS   = "plantguard_x7k92mf/status";
 
-// ----------------------------------------------------------------
-//  Hardware Pins
-// ----------------------------------------------------------------
+// ── Hardware Pins ──
 const int sensorPin = 35;
 const int relayPin  = 32;
 
-// ----------------------------------------------------------------
-//  Sensor Calibration
-// ----------------------------------------------------------------
+// ── Sensor Calibration ──
 const int DRY_VALUE      = 3500;
 const int WET_VALUE      = 1500;
-const int AUTO_THRESHOLD = 40;
-
-// ----------------------------------------------------------------
-//  Relay Logic
-// ----------------------------------------------------------------
+int AUTO_THRESHOLD = 40;
+// ── Relay Logic (adjust if your relay is active-LOW) ──
 const int PUMP_ON  = HIGH;
 const int PUMP_OFF = LOW;
 
-// ----------------------------------------------------------------
-//  State
-// ----------------------------------------------------------------
+// ── Timezone (Egypt = UTC+2) ──
+const long  TZ_OFFSET_SEC = 2 * 3600;
+
+// ================================================================
+//  STATE
+// ================================================================
 bool pumpState     = false;
 bool autoModeState = false;
 
-// ----------------------------------------------------------------
-//  Schedule
-// ----------------------------------------------------------------
+// ── Schedule ──
+// scheduleDay: -1 = every day, 0–6 = Sunday–Saturday (tm_wday)
+int  scheduleDay      = -1;
 int  scheduleHour     = -1;   // -1 = no schedule set
 int  scheduleMinute   = -1;
 int  scheduleDuration = 60;   // seconds
+bool scheduleRepeat   = true; // true = weekly/daily, false = once
+
 bool scheduleRunning  = false;
 unsigned long pumpStartTime = 0;
 
-// ----------------------------------------------------------------
-//  MQTT / WiFi clients
-// ----------------------------------------------------------------
+// ── MQTT / WiFi ──
 WiFiClientSecure espClient;
 PubSubClient     client(espClient);
 
-// ----------------------------------------------------------------
-//  Pump control
-// ----------------------------------------------------------------
+// ================================================================
+//  PUMP CONTROL
+// ================================================================
 void pumpOn() {
   digitalWrite(relayPin, PUMP_ON);
   pumpState = true;
@@ -73,9 +69,9 @@ void pumpOff() {
   pumpState = false;
 }
 
-// ----------------------------------------------------------------
-//  Soil moisture reading (averaged over 10 samples)
-// ----------------------------------------------------------------
+// ================================================================
+//  SOIL MOISTURE READING  (averaged over 10 samples)
+// ================================================================
 int readMoisturePercent() {
   long total = 0;
   for (int i = 0; i < 10; i++) {
@@ -88,90 +84,124 @@ int readMoisturePercent() {
   return percent;
 }
 
-// ----------------------------------------------------------------
-//  Publish full status JSON to website
-// ----------------------------------------------------------------
+// ================================================================
+//  PUBLISH STATUS JSON
+//  Includes schedule fields so the dashboard can reconstruct
+//  the countdown after a page refresh.
+// ================================================================
 void publishStatus(int percent) {
-  String payload = "{";
-  payload += "\"moisture\":"  + String(percent) + ",";
-  payload += "\"pump\":\""    + String(pumpState     ? "ON"   : "OFF")    + "\",";
-  payload += "\"mode\":\""    + String(autoModeState ? "AUTO" : "MANUAL") + "\",";
-  payload += "\"schedule\":\"";
-  if (scheduleHour != -1) {
-    char buf[10];
-    sprintf(buf, "%02d:%02d", scheduleHour, scheduleMinute);
-    payload += String(buf) + " (" + String(scheduleDuration) + "s)";
-  } else {
-    payload += "none";
-  }
-  payload += "\"}";
+  StaticJsonDocument<300> doc;
+  doc["moisture"]        = percent;
+  doc["pump"]            = pumpState     ? "ON"   : "OFF";
+  doc["mode"]            = autoModeState ? "AUTO" : "MANUAL";
+  doc["scheduleDay"]     = scheduleDay;
+  doc["scheduleHour"]    = scheduleHour;
+  doc["scheduleMinute"]  = scheduleMinute;
+  doc["scheduleDuration"]= scheduleDuration;
+  doc["scheduleRepeat"]  = scheduleRepeat;
 
-  client.publish(TOPIC_STATUS, payload.c_str());
+  // Human-readable schedule string for the status panel
+  if (scheduleHour != -1) {
+    char timeBuf[8];
+    sprintf(timeBuf, "%02d:%02d", scheduleHour, scheduleMinute);
+    String schedStr = "";
+    if (scheduleDay == -1) {
+      schedStr = String("Every Day ") + timeBuf;
+    } else {
+      const char* dayNames[] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
+      schedStr = String(dayNames[scheduleDay]) + " " + timeBuf;
+    }
+    schedStr += " (" + String(scheduleDuration) + "s)";
+    doc["schedule"] = schedStr;
+  } else {
+    doc["schedule"] = "none";
+  }
+
+  char payload[300];
+  serializeJson(doc, payload);
+
+  client.publish(TOPIC_STATUS, payload);
   Serial.print("Status sent: ");
   Serial.println(payload);
 }
 
-// ----------------------------------------------------------------
-//  Sync time from internet (Egypt = UTC+2)
-// ----------------------------------------------------------------
+// ================================================================
+//  TIME SYNC
+// ================================================================
 void syncTime() {
-  configTime(2 * 3600, 0, "pool.ntp.org");
+  configTime(TZ_OFFSET_SEC, 0, "pool.ntp.org", "time.nist.gov");
   Serial.print("Syncing time");
   struct tm t;
-  while (!getLocalTime(&t)) {
+  int attempts = 0;
+  while (!getLocalTime(&t) && attempts < 20) {
     Serial.print(".");
     delay(500);
+    attempts++;
   }
-  Serial.println(" done");
-  Serial.printf("Current time: %02d:%02d:%02d\n", t.tm_hour, t.tm_min, t.tm_sec);
+  if (attempts < 20) {
+    Serial.printf("\nTime synced: %02d:%02d:%02d  weekday=%d\n",
+      t.tm_hour, t.tm_min, t.tm_sec, t.tm_wday);
+  } else {
+    Serial.println("\nTime sync failed — schedule won't work until sync succeeds");
+  }
 }
 
-// ----------------------------------------------------------------
-//  Check if scheduled watering should start or stop
-// ----------------------------------------------------------------
+// ================================================================
+//  SCHEDULE CHECK  (called every loop iteration)
+// ================================================================
 void checkSchedule() {
-  if (scheduleHour == -1) return;
+  if (scheduleHour == -1) return;  // No schedule set
 
   struct tm t;
   if (!getLocalTime(&t)) return;
 
-  // Start pump at scheduled time
-  if (!scheduleRunning &&
+  // ── Should watering START? ──
+  bool dayMatch = (scheduleDay == -1) || (t.tm_wday == scheduleDay);
+
+  if (!scheduleRunning && dayMatch &&
       t.tm_hour == scheduleHour &&
       t.tm_min  == scheduleMinute) {
     scheduleRunning = true;
     pumpStartTime   = millis();
-    autoModeState   = false;
+    autoModeState   = false;   // disable auto while scheduled run is active
     pumpOn();
-    Serial.println("Scheduled watering started");
+    Serial.printf("Scheduled watering started (day=%d %02d:%02d dur=%ds)\n",
+      scheduleDay, scheduleHour, scheduleMinute, scheduleDuration);
     publishStatus(readMoisturePercent());
   }
 
-  // Stop pump after duration
+  // ── Should watering STOP? ──
   if (scheduleRunning &&
-      millis() - pumpStartTime >= (unsigned long)(scheduleDuration * 1000)) {
+      millis() - pumpStartTime >= (unsigned long)(scheduleDuration * 1000UL)) {
     scheduleRunning = false;
     pumpOff();
     Serial.println("Scheduled watering finished");
+
+    // If one-time schedule, clear it
+    if (!scheduleRepeat) {
+      scheduleHour   = -1;
+      scheduleMinute = -1;
+      scheduleDay    = -1;
+      Serial.println("One-time schedule cleared");
+    }
+
     publishStatus(readMoisturePercent());
   }
 }
 
-// ----------------------------------------------------------------
-//  MQTT command handler
-//  Plain text: "pump_on" / "pump_off" / "auto_mode"
-//  JSON:       {"cmd":"set_schedule","hour":7,"minute":30,"duration":60}
-//              {"cmd":"clear_schedule"}
-// ----------------------------------------------------------------
+// ================================================================
+//  MQTT COMMAND HANDLER
+// ================================================================
 void callback(char* topic, byte* payload, unsigned int length) {
   String message = "";
-  for (int i = 0; i < length; i++) {
+  for (unsigned int i = 0; i < length; i++) {
     message += (char)payload[i];
   }
 
   Serial.print("Command received: ");
   Serial.println(message);
 
+  // ── Plain text commands ──
   if (message == "pump_on") {
     autoModeState   = false;
     scheduleRunning = false;
@@ -186,53 +216,73 @@ void callback(char* topic, byte* payload, unsigned int length) {
     autoModeState   = true;
     scheduleRunning = false;
   }
+  // ── JSON commands ──
   else if (message.startsWith("{")) {
-    StaticJsonDocument<200> doc;
+    StaticJsonDocument<256> doc;
     DeserializationError err = deserializeJson(doc, message);
-    if (!err) {
-      const char* cmd = doc["cmd"];
-      if (cmd && strcmp(cmd, "set_schedule") == 0) {
-        scheduleHour     = doc["hour"];
-        scheduleMinute   = doc["minute"];
-        scheduleDuration = doc["duration"];
-        Serial.printf("Schedule set: %02d:%02d for %d seconds\n",
-          scheduleHour, scheduleMinute, scheduleDuration);
-      }
-      else if (cmd && strcmp(cmd, "clear_schedule") == 0) {
-        scheduleHour    = -1;
-        scheduleMinute  = -1;
-        scheduleRunning = false;
-        Serial.println("Schedule cleared");
-      }
+    if (err) {
+      Serial.print("JSON parse error: ");
+      Serial.println(err.c_str());
+      return;
     }
-  }
 
+    const char* cmd = doc["cmd"];
+    if (!cmd) return;
+
+    if (strcmp(cmd, "set_schedule") == 0) {
+      scheduleDay      = doc["day"]      | -1;
+      scheduleHour     = doc["hour"]     | -1;
+      scheduleMinute   = doc["minute"]   | 0;
+      scheduleDuration = doc["duration"] | 60;
+
+      // "weekly" or "daily" both mean repeat; "once" means clear after run
+      const char* repeat = doc["repeat"] | "weekly";
+      scheduleRepeat = (strcmp(repeat, "once") != 0);
+
+      Serial.printf("Schedule set → day=%d %02d:%02d duration=%ds repeat=%s\n",
+        scheduleDay, scheduleHour, scheduleMinute,
+        scheduleDuration, scheduleRepeat ? "yes" : "no");
+    }
+   else if (strcmp(cmd, "clear_schedule") == 0) {
+      scheduleHour    = -1;
+      scheduleMinute  = -1;
+      scheduleDay     = -1;
+      scheduleRunning = false;
+      Serial.println("Schedule cleared");
+    }
+    else if (strcmp(cmd, "set_threshold") == 0) {
+      int val = doc["value"] | 40;
+      AUTO_THRESHOLD = constrain(val, 10, 80);
+      Serial.printf("Auto threshold set to %d%%\n", AUTO_THRESHOLD);
+    }
+  }  
   publishStatus(readMoisturePercent());
 }
 
-// ----------------------------------------------------------------
-//  WiFi connect
-// ----------------------------------------------------------------
+// ================================================================
+//  WIFI + MQTT SETUP
+// ================================================================
 void setup_wifi() {
   WiFi.begin(ssid, password);
   Serial.print("Connecting WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
+  int attempts = 0;
+  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
     delay(500);
     Serial.print(".");
+    attempts++;
   }
-  Serial.println();
-  Serial.println("WiFi Connected");
-  Serial.print("ESP32 IP: ");
-  Serial.println(WiFi.localIP());
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nWiFi connected — IP: " + WiFi.localIP().toString());
+  } else {
+    Serial.println("\nWiFi FAILED — restarting");
+    ESP.restart();
+  }
 }
 
-// ----------------------------------------------------------------
-//  MQTT reconnect
-// ----------------------------------------------------------------
 void reconnect() {
   while (!client.connected()) {
     Serial.print("Connecting MQTT...");
-    String clientId = "ESP32_Plant_Client_";
+    String clientId = "ESP32_PlantGuard_";
     clientId += String(random(1000, 9999));
     if (client.connect(clientId.c_str(), mqtt_user, mqtt_pass)) {
       Serial.println("Connected");
@@ -241,15 +291,16 @@ void reconnect() {
       Serial.println(TOPIC_PUMP);
     } else {
       Serial.print("Failed rc=");
-      Serial.println(client.state());
+      Serial.print(client.state());
+      Serial.println(" — retry in 5s");
       delay(5000);
     }
   }
 }
 
-// ----------------------------------------------------------------
-//  Setup
-// ----------------------------------------------------------------
+// ================================================================
+//  SETUP
+// ================================================================
 void setup() {
   Serial.begin(115200);
 
@@ -259,20 +310,21 @@ void setup() {
   setup_wifi();
   syncTime();
 
-  espClient.setInsecure();
+  espClient.setInsecure();   // TLS without cert verification (OK for private use)
   client.setServer(mqtt_server, mqtt_port);
   client.setCallback(callback);
 }
 
-// ----------------------------------------------------------------
-//  Loop
-// ----------------------------------------------------------------
+// ================================================================
+//  LOOP
+// ================================================================
 void loop() {
   if (!client.connected()) reconnect();
   client.loop();
 
   int percent = readMoisturePercent();
 
+  // Auto mode: turn pump on/off based on threshold
   if (autoModeState) {
     if (percent < AUTO_THRESHOLD) {
       pumpOn();
@@ -281,15 +333,17 @@ void loop() {
     }
   }
 
+  // Check if a scheduled watering should start or stop
   checkSchedule();
 
+  // Publish status every 3 seconds
   static unsigned long lastMsg = 0;
   if (millis() - lastMsg > 3000) {
     lastMsg = millis();
-    client.publish(TOPIC_MOISTURE, String(percent).c_str());
     publishStatus(percent);
-    Serial.print("Moisture sent to website: ");
-    Serial.print(percent);
-    Serial.println("%");
+    Serial.printf("Moisture: %d%%  Pump: %s  Mode: %s\n",
+      percent,
+      pumpState     ? "ON"   : "OFF",
+      autoModeState ? "AUTO" : "MANUAL");
   }
 }

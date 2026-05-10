@@ -1,71 +1,105 @@
-🌱 Smart Irrigation System — ESP32 MQTT
-A smart irrigation system using an ESP32 microcontroller, MQTT protocol over HiveMQ Cloud, and a web dashboard for remote control.
+# PlantGuard ESP32 Firmware 🌿
+
+ESP32 firmware for the PlantGuard Smart Irrigation System.
+
+This firmware handles:
+- Soil moisture monitoring
+- Automatic irrigation logic
+- Pump control
+- MQTT communication
+- Real-time status reporting
+- Scheduled watering
+- Web dashboard synchronization
+
+The ESP32 acts as the core controller of the entire PlantGuard system.
+
 ---
-📡 Architecture
-```
-ESP32 (Sensor + Relay)
-        ↕ MQTT over TLS (HiveMQ Cloud)
-Node.js Backend (Railway)
-        ↕ WebSocket
-Web Dashboard (Netlify)
-```
+
+## Features
+
+### Real-Time Soil Monitoring
+- Reads soil moisture using an analog moisture sensor
+- Uses averaged readings for improved stability
+- Converts raw sensor values into percentage-based moisture levels
+
+### Automatic Irrigation
+- Auto watering mode based on configurable moisture threshold
+- Pump activates when soil becomes too dry
+- Threshold adjustable remotely from the dashboard
+
+### Manual Pump Control
+Supports remote commands:
+- Pump ON
+- Pump OFF
+- AUTO mode
+
+Commands are received through MQTT and WebSocket communication.
+
+### Smart Scheduling System
+Supports:
+- Daily watering schedules
+- Weekly watering schedules
+- One-time irrigation events
+- Custom watering duration
+- Automatic schedule clearing after one-time runs
+
+### MQTT Communication
+Uses secure MQTT over TLS with HiveMQ Cloud.
+
+Publishes:
+- Soil moisture
+- Pump status
+- Irrigation mode
+- Schedule information
+
+Subscribes to:
+- Pump commands
+- Schedule commands
+- Threshold updates
+
+### Dashboard Synchronization
+The ESP32 continuously sends status packets so the frontend dashboard can:
+- Rebuild countdown timers after refresh
+- Display live pump status
+- Show active schedules
+- Track watering activity
+
+### WiFi Auto-Reconnect
+- Automatic MQTT reconnection
+- WiFi connection recovery
+- System restart if WiFi fails during boot
+
+### NTP Time Synchronization
+Uses internet time servers to:
+- Maintain accurate schedules
+- Support weekday scheduling
+- Execute irrigation events precisely
+
 ---
-⚙️ Hardware
-Component	Pin
-Soil Moisture Sensor	GPIO 35
-Relay (Water Pump)	GPIO 32
+
+## Hardware Requirements
+
+### Main Components
+- ESP32 Development Board
+- Soil Moisture Sensor
+- Relay Module
+- Water Pump
+- External Water Supply
+
+### GPIO Connections
+
+| Component | ESP32 Pin |
+|---|---|
+| Soil Moisture Sensor | GPIO 35 |
+| Relay Module | GPIO 32 |
+
 ---
-📦 Libraries Required
-Install via Arduino Library Manager:
-Library	Author	How
-WiFi.h	—	Built-in (ESP32)
-WiFiClientSecure.h	—	Built-in (ESP32)
-PubSubClient	Nick O'Leary	Library Manager
-ArduinoJson	Benoit Blanchon	Library Manager
-time.h	—	Built-in (ESP32)
----
-🔧 Configuration
-Open `esp32_irrigation.ino` and update these lines:
-```cpp
-const char* ssid        = "YOUR_WIFI_NAME";
-const char* password    = "YOUR_WIFI_PASSWORD";
-const char* mqtt_server = "YOUR.hivemq.cloud";
-const char* mqtt_user   = "YOUR_USERNAME";
-const char* mqtt_pass   = "YOUR_PASSWORD";
-```
----
-📤 MQTT Topics
-Topic	Direction	Description
-`plantguard_x7k92mf/moisture`	ESP32 → Cloud	Raw moisture %
-`plantguard_x7k92mf/status`	ESP32 → Cloud	Full JSON status
-`plantguard_x7k92mf/pump`	Cloud → ESP32	Commands
----
-🎮 Commands (sent to pump topic)
-Command	Type	Description
-`pump_on`	plain text	Turn pump ON (manual)
-`pump_off`	plain text	Turn pump OFF (manual)
-`auto_mode`	plain text	Enable auto mode (triggers below 40% moisture)
-`{"cmd":"set_schedule","hour":7,"minute":30,"duration":60}`	JSON	Schedule watering at 07:30 for 60 seconds
-`{"cmd":"clear_schedule"}`	JSON	Cancel scheduled watering
----
-📊 Status JSON (published every 3 seconds)
-```json
-{
-  "moisture": 45,
-  "pump": "OFF",
-  "mode": "AUTO",
-  "schedule": "07:30 (60s)"
-}
-```
----
-🌍 Timezone
-Currently set to UTC+2 (Egypt). To change, update this line in `setup()`:
-```cpp
-configTime(2 * 3600, 0, "pool.ntp.org");
-//         ^ change this (seconds offset from UTC)
-```
----
-🔗 Links
-HiveMQ Cloud — Free MQTT broker
-PubSubClient Docs
-ArduinoJson Docs
+
+## Libraries Used
+
+Install these libraries from the Arduino Library Manager:
+
+WiFi
+WiFiClientSecure
+PubSubClient
+ArduinoJson

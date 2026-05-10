@@ -1,312 +1,986 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Plant Watering System</title>
+  <title>PlantGuard — Smart Irrigation</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
-    * { box-sizing: border-box; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:      #00e676;
+      --green-dim:  #00c853;
+      --green-glow: rgba(0,230,118,0.25);
+      --red:        #ff5252;
+      --red-glow:   rgba(255,82,82,0.25);
+      --amber:      #ffab40;
+      --amber-glow: rgba(255,171,64,0.2);
+      --blue:       #448aff;
+      --blue-glow:  rgba(68,138,255,0.25);
+      --card-bg:    rgba(10,30,18,0.7);
+      --card-border:rgba(0,230,118,0.12);
+      --text:       #e8f5e9;
+      --text-dim:   #6abf7b;
+    }
 
     body {
-      margin: 0;
       min-height: 100vh;
-      font-family: "Segoe UI", Arial, sans-serif;
-      background: linear-gradient(rgba(4,33,17,0.93), rgba(4,33,17,0.93));
-      color: #dfffe8;
-      text-align: center;
-      padding: 40px 20px;
+      font-family: 'Inter', sans-serif;
+      color: var(--text);
+      background: #020d07;
+      overflow-x: hidden;
     }
 
-    .logo { font-size: 42px; margin-bottom: 5px; }
-
-    h1 {
-      font-size: 56px;
-      line-height: 0.95;
-      margin: 0;
-      font-family: Georgia, serif;
-      color: #eaffef;
+    .bg {
+      position: fixed; inset: 0; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 10%, rgba(0,80,30,0.5) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 80%, rgba(0,50,20,0.4) 0%, transparent 55%),
+        radial-gradient(ellipse 100% 80% at 50% 50%, rgba(2,20,10,1) 0%, #020d07 100%);
+      animation: bgShift 12s ease-in-out infinite alternate;
+    }
+    @keyframes bgShift {
+      0%   { filter: hue-rotate(0deg) brightness(1); }
+      100% { filter: hue-rotate(15deg) brightness(1.1); }
     }
 
-    h1 span { color: #3cff86; }
+    .orb {
+      position: fixed; border-radius: 50%; filter: blur(80px);
+      opacity: 0.15; pointer-events: none; z-index: 0;
+      animation: orbFloat 10s ease-in-out infinite alternate;
+    }
+    .orb1 { width:500px;height:500px;background:#00e676;top:-150px;left:-100px; }
+    .orb2 { width:400px;height:400px;background:#1b5e20;bottom:-100px;right:-80px;animation-delay:-4s; }
+    .orb3 { width:300px;height:300px;background:#00c853;top:50%;left:60%;animation-delay:-7s; }
+    @keyframes orbFloat {
+      0%   { transform: translate(0,0) scale(1); }
+      100% { transform: translate(30px,40px) scale(1.08); }
+    }
+
+    .page {
+      position: relative; z-index: 1;
+      max-width: 960px; margin: 0 auto; padding: 50px 20px 60px;
+    }
+
+    .header { text-align: center; margin-bottom: 48px; }
+
+    .logo-wrap {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 72px; height: 72px;
+      background: rgba(0,230,118,0.1); border: 1px solid rgba(0,230,118,0.25);
+      border-radius: 20px; font-size: 36px; margin-bottom: 20px;
+      box-shadow: 0 0 40px var(--green-glow);
+    }
+
+    h1 { font-size: 52px; font-weight: 700; letter-spacing: -1px; color: #fff; line-height: 1.05; }
+    h1 span { color: var(--green); }
 
     .subtitle {
-      margin-top: 20px;
-      letter-spacing: 4px;
-      color: #74c48c;
-      font-size: 14px;
+      margin-top: 12px; font-size: 12px; letter-spacing: 5px;
+      color: var(--text-dim); font-weight: 500;
     }
 
-    .connection {
-      margin: 35px auto;
-      color: #4eff8a;
-      letter-spacing: 2px;
-      font-size: 14px;
+    .conn-pill {
+      display: inline-flex; align-items: center; gap: 8px; margin-top: 24px;
+      padding: 8px 20px; border-radius: 30px;
+      background: rgba(0,230,118,0.08); border: 1px solid rgba(0,230,118,0.2);
+      font-size: 12px; letter-spacing: 3px; color: var(--green); font-weight: 600;
+    }
+    .conn-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%,100% { opacity: 1; box-shadow: 0 0 8px var(--green); }
+      50%      { opacity: 0.4; box-shadow: none; }
     }
 
-    .dot {
-      display: inline-block;
-      width: 11px;
-      height: 11px;
-      background: #4eff8a;
-      border-radius: 50%;
-      box-shadow: 0 0 12px #4eff8a;
-      margin-right: 8px;
-    }
-
-    .dashboard {
-      max-width: 900px;
-      margin: auto;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
-    }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .span2 { grid-column: span 2; }
 
     .card {
-      background: rgba(6,37,18,0.85);
-      border: 1px solid rgba(100,255,150,0.18);
-      border-radius: 22px;
-      padding: 28px;
-      text-align: left;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+      background: var(--card-bg); border: 1px solid var(--card-border);
+      border-radius: 24px; padding: 28px;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+      transition: border-color .3s, box-shadow .3s;
+    }
+    .card:hover {
+      border-color: rgba(0,230,118,0.22);
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,230,118,0.08);
     }
 
-    .wide { grid-column: span 2; }
-
-    .label {
-      color: #64bf7a;
-      letter-spacing: 5px;
-      font-size: 13px;
-      margin-bottom: 22px;
+    .card-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 5px;
+      color: var(--text-dim); margin-bottom: 20px;
     }
 
-    .big-value {
-      font-size: 70px;
-      font-weight: bold;
-      color: #4eff8a;
-      font-family: Georgia, serif;
+    .moisture-val {
+      font-size: 80px; font-weight: 700; font-family: 'Space Mono', monospace;
+      color: var(--green); line-height: 1;
+      text-shadow: 0 0 40px var(--green-glow); transition: color .5s, text-shadow .5s;
     }
+    .moisture-val.low { color: var(--red);   text-shadow: 0 0 40px var(--red-glow); }
+    .moisture-val.mid { color: var(--amber); text-shadow: 0 0 40px var(--amber-glow); }
 
-    .bar {
-      height: 9px;
-      background: rgba(255,255,255,0.08);
-      border-radius: 30px;
-      overflow: hidden;
-      margin-top: 25px;
-    }
-
+    .bar-track { margin-top: 24px; height: 6px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden; }
     .bar-fill {
-      height: 100%;
-      width: 0%;
-      background: #4eff8a;
-      border-radius: 30px;
-      transition: 0.4s;
+      height: 100%; width: 0%; border-radius: 10px;
+      background: var(--green); box-shadow: 0 0 10px var(--green-glow);
+      transition: width .6s ease, background .5s, box-shadow .5s;
     }
+    .bar-fill.low { background: var(--red);   box-shadow: 0 0 10px var(--red-glow); }
+    .bar-fill.mid { background: var(--amber); box-shadow: 0 0 10px var(--amber-glow); }
 
-    .pump-status {
-      font-size: 46px;
-      color: #4eff8a;
-      font-weight: bold;
-      margin-bottom: 20px;
+    .moisture-hint { margin-top: 10px; font-size: 12px; color: var(--text-dim); letter-spacing: 1px; }
+
+    .pump-val {
+      font-size: 48px; font-weight: 700; font-family: 'Space Mono', monospace;
+      color: var(--green); line-height: 1; margin-bottom: 16px; transition: color .3s;
     }
+    .pump-val.off { color: var(--red); }
 
     .badge {
-      display: inline-block;
-      padding: 10px 22px;
-      border-radius: 25px;
-      background: rgba(255,70,70,0.25);
-      border: 1px solid #ff5c5c;
-      color: #ff8d8d;
-      font-weight: bold;
-      letter-spacing: 2px;
+      display: inline-block; padding: 6px 18px; border-radius: 20px;
+      font-size: 11px; font-weight: 700; letter-spacing: 3px;
+      background: var(--red-glow); border: 1px solid var(--red); color: var(--red);
+      transition: all .3s;
     }
-
     .badge.on {
-      background: rgba(70,255,130,0.2);
-      border-color: #4eff8a;
-      color: #4eff8a;
+      background: var(--green-glow); border-color: var(--green); color: var(--green);
+      box-shadow: 0 0 16px var(--green-glow);
     }
 
-    .mode {
-      margin-top: 20px;
-      color: #74c48c;
-      letter-spacing: 2px;
+    .info-row {
+      display: flex; align-items: center; gap: 8px; margin-top: 14px;
+      font-size: 13px; color: var(--text-dim);
+    }
+    .info-row span { color: var(--text); font-weight: 500; }
+
+    .pump-prog-wrap { display: none; margin-top: 16px; }
+    .pump-prog-wrap.active { display: block; }
+    .pump-prog-label { font-size: 10px; letter-spacing: 3px; color: var(--green); margin-bottom: 6px; }
+    .pump-prog-track { height: 4px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden; }
+    .pump-prog-fill  { height: 100%; width: 100%; background: var(--green); border-radius: 10px; transition: width 1s linear; box-shadow: 0 0 8px var(--green-glow); }
+
+    .btn-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+
+    .btn {
+      padding: 16px 10px; border: none; border-radius: 14px;
+      font-size: 13px; font-weight: 700; letter-spacing: 1px;
+      cursor: pointer; color: #fff;
+      transition: transform .2s, box-shadow .2s;
+      position: relative; overflow: hidden;
+    }
+    .btn::before {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,0.08); opacity: 0; transition: opacity .2s;
+    }
+    .btn:hover::before { opacity: 1; }
+    .btn:hover  { transform: translateY(-3px); }
+    .btn:active { transform: translateY(0); }
+
+    .btn-on   { background: linear-gradient(135deg,#0a5c2a,#157a38); border: 1px solid #3cff86; box-shadow: 0 4px 20px rgba(0,200,80,0.2); }
+    .btn-on:hover   { box-shadow: 0 8px 30px rgba(0,200,80,0.4); }
+    .btn-off  { background: linear-gradient(135deg,#6b1010,#941f1f); border: 1px solid #ff5252; box-shadow: 0 4px 20px rgba(255,80,80,0.2); }
+    .btn-off:hover  { box-shadow: 0 8px 30px rgba(255,80,80,0.4); }
+    .btn-auto { background: linear-gradient(135deg,#0d2d5e,#1f4978); border: 1px solid #448aff; box-shadow: 0 4px 20px rgba(68,138,255,0.2); }
+    .btn-auto:hover { box-shadow: 0 8px 30px rgba(68,138,255,0.4); }
+    .btn-set  { background: linear-gradient(135deg,#4a2e00,#6b4200); border: 1px solid var(--amber); color: var(--amber); box-shadow: 0 4px 20px var(--amber-glow); }
+    .btn-set:hover  { box-shadow: 0 8px 30px rgba(255,171,64,0.4); }
+    .btn-clear{ background: linear-gradient(135deg,#2a0a0a,#400f0f); border: 1px solid var(--red); color: var(--red); box-shadow: 0 4px 20px var(--red-glow); }
+    .btn-clear:hover{ box-shadow: 0 8px 30px var(--red-glow); }
+
+    /* ── SCHEDULE INPUTS ── */
+    .input-row {
+      display: grid; grid-template-columns: 1fr 1fr 1fr;
+      gap: 14px; margin-bottom: 14px;
+    }
+    .input-group label {
+      display: block; font-size: 10px; font-weight: 700;
+      letter-spacing: 4px; color: var(--text-dim); margin-bottom: 8px;
+    }
+    .input-group input,
+    .input-group select {
+      width: 100%; padding: 13px 14px; border-radius: 12px;
+      border: 1px solid rgba(0,230,118,0.15); background: rgba(0,0,0,0.35);
+      color: var(--text); font-size: 14px; font-family: 'Space Mono', monospace;
+      outline: none; transition: border-color .2s, box-shadow .2s;
+      appearance: none; -webkit-appearance: none;
+    }
+    .input-group select option { background: #0a1f10; color: var(--text); }
+    .input-group input:focus,
+    .input-group select:focus {
+      border-color: var(--green); box-shadow: 0 0 0 3px var(--green-glow);
     }
 
-    .buttons {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 14px;
+    /* ── DAY PILLS ── */
+    .day-section-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 4px;
+      color: var(--text-dim); margin-bottom: 10px;
+    }
+    .day-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .day-pill {
+      padding: 8px 14px; border-radius: 10px;
+      border: 1px solid rgba(0,230,118,0.15); background: rgba(0,0,0,0.3);
+      color: var(--text-dim); font-size: 11px; font-weight: 700; letter-spacing: 2px;
+      cursor: pointer; transition: all .2s; font-family: 'Space Mono', monospace;
+      user-select: none;
+    }
+    .day-pill:hover { border-color: rgba(0,230,118,0.4); color: var(--text); }
+    .day-pill.selected {
+      background: rgba(0,230,118,0.15); border-color: var(--green); color: var(--green);
+      box-shadow: 0 0 12px var(--green-glow);
+    }
+    .day-pill.everyday { border-color: rgba(68,138,255,0.3); color: var(--blue); }
+    .day-pill.everyday.selected {
+      background: rgba(68,138,255,0.15); border-color: var(--blue);
+      box-shadow: 0 0 12px var(--blue-glow);
+    }
+    /* subtle ring on today's pill */
+    .day-pill.is-today {
+      box-shadow: 0 0 0 2px rgba(0,230,118,0.4);
+    }
+    .day-pill.is-today::after {
+      content: ' ·';
+      color: var(--green);
     }
 
-    button {
-      border: none;
-      padding: 18px;
+    /* ── THIS / NEXT WEEK TOGGLE ── */
+    .week-toggle {
+      display: none;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      background: rgba(0,0,0,0.25);
+      border: 1px solid rgba(0,230,118,0.1);
       border-radius: 14px;
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 1.5px;
-      cursor: pointer;
-      color: white;
-      transition: 0.25s;
+    }
+    .week-toggle.visible { display: flex; }
+
+    .week-toggle-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 4px; color: var(--text-dim);
+      margin-right: 4px;
     }
 
-    button:hover {
-      transform: translateY(-2px);
-      filter: brightness(1.15);
+    .wtog-btn {
+      padding: 8px 18px; border-radius: 10px; cursor: pointer;
+      font-size: 11px; font-weight: 700; letter-spacing: 2px;
+      font-family: 'Space Mono', monospace;
+      transition: all .2s; user-select: none;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(0,230,118,0.15);
+      color: var(--text-dim);
+    }
+    .wtog-btn:hover { border-color: rgba(0,230,118,0.4); color: var(--text); }
+    .wtog-btn.active {
+      background: rgba(0,230,118,0.15); border-color: var(--green); color: var(--green);
+      box-shadow: 0 0 10px var(--green-glow);
+    }
+    .wtog-btn.next-active {
+      background: rgba(255,171,64,0.12); border-color: var(--amber); color: var(--amber);
+      box-shadow: 0 0 10px var(--amber-glow);
+    }
+    .week-toggle-hint {
+      font-size: 11px; color: var(--text-dim); letter-spacing: 0; margin-left: auto;
     }
 
-    .btn-on { background: #157a38; border: 1px solid #3cff86; }
-    .btn-off { background: #941f1f; border: 1px solid #ff6464; }
-    .btn-auto { background: #1f4978; border: 1px solid #64a7ff; }
+    .sched-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-    .last-update {
-      margin-top: 28px;
-      color: #57996c;
-      font-size: 14px;
+    .sched-status {
+      margin-top: 14px; font-size: 12px; font-weight: 600;
+      letter-spacing: 2px; color: var(--amber); min-height: 18px;
     }
 
-    @media (max-width: 750px) {
-      h1 { font-size: 42px; }
-      .dashboard { grid-template-columns: 1fr; }
-      .wide { grid-column: span 1; }
-      .buttons { grid-template-columns: 1fr; }
+    .countdown-box {
+      display: none; margin-top: 20px;
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,171,64,0.2);
+      border-radius: 18px; padding: 22px; text-align: center;
+    }
+    .countdown-box.active { display: block; }
+
+    .cd-label { font-size: 10px; font-weight: 700; letter-spacing: 5px; color: var(--amber); margin-bottom: 10px; }
+    .cd-timer {
+      font-family: 'Space Mono', monospace; font-size: 48px; font-weight: 700;
+      color: var(--amber); text-shadow: 0 0 30px var(--amber-glow); letter-spacing: 4px;
+      transition: color .5s, text-shadow .5s;
+    }
+    .cd-timer.running { color: var(--green); text-shadow: 0 0 30px var(--green-glow); }
+    .cd-sub { margin-top: 8px; font-size: 12px; color: var(--text-dim); letter-spacing: 2px; }
+    .cd-day-badge {
+      display: inline-block; margin-top: 10px; padding: 4px 14px; border-radius: 20px;
+      background: rgba(255,171,64,0.1); border: 1px solid rgba(255,171,64,0.25);
+      font-size: 11px; font-weight: 700; letter-spacing: 3px; color: var(--amber);
+    }
+
+    /* chart */
+    .chart-inner { position: relative; height: 180px; }
+    canvas { max-width: 100% !important; }
+
+    .footer {
+      text-align: center; margin-top: 36px; font-size: 11px;
+      color: rgba(100,180,120,0.35); letter-spacing: 3px;
+    }
+
+    @media (max-width: 700px) {
+      h1 { font-size: 36px; }
+      .grid { grid-template-columns: 1fr; }
+      .span2 { grid-column: span 1; }
+      .btn-row { grid-template-columns: 1fr; }
+      .input-row { grid-template-columns: 1fr; }
+      .sched-btn-row { grid-template-columns: 1fr; }
+      .moisture-val { font-size: 60px; }
+      .cd-timer { font-size: 34px; }
+      .day-pills { gap: 6px; }
+      .day-pill { padding: 7px 10px; font-size: 10px; }
+      .week-toggle-hint { display: none; }
     }
   </style>
 </head>
 
 <body>
+  <div class="bg"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
 
-  <div class="logo">🌿</div>
-  <h1>Plant <span>Watering</span><br>System</h1>
-  <div class="subtitle">REMOTE MONITORING & CONTROL</div>
+  <div class="page">
 
-  <div class="connection">
-    <span class="dot"></span>
-    <span id="connectionText">CONNECTING TO BACKEND...</span>
-  </div>
-
-  <div class="dashboard">
-
-    <div class="card">
-      <div class="label">SOIL MOISTURE</div>
-      <div class="big-value" id="moisture">--%</div>
-      <div class="bar">
-        <div class="bar-fill" id="barFill"></div>
+    <div class="header">
+      <div class="logo-wrap">🌿</div>
+      <h1>Plant <span>Watering</span><br>System</h1>
+      <div class="subtitle">REMOTE MONITORING & CONTROL</div>
+      <div class="conn-pill">
+        <div class="conn-dot"></div>
+        <span id="connectionText">CONNECTING...</span>
       </div>
     </div>
 
-    <div class="card">
-      <div class="label">PUMP STATUS</div>
-      <div class="pump-status" id="pumpText">--</div>
-      <span class="badge" id="pumpBadge">UNKNOWN</span>
-      <div class="mode">Mode: <span id="modeText">MANUAL</span></div>
-    </div>
+    <div class="grid">
 
-    <div class="card wide">
-      <div class="label">PUMP CONTROL</div>
-      <div class="buttons">
-        <button class="btn-on" onclick="sendPump(1)">💧 PUMP ON</button>
-        <button class="btn-off" onclick="sendPump(0)">🛑 PUMP OFF</button>
-        <button class="btn-auto" onclick="autoMode()">🔄 AUTO MODE</button>
+      <!-- MOISTURE -->
+      <div class="card">
+        <div class="card-label">SOIL MOISTURE</div>
+        <div class="moisture-val" id="moisture">--%</div>
+        <div class="bar-track"><div class="bar-fill" id="barFill"></div></div>
+        <div class="moisture-hint" id="moistureHint">waiting for sensor...</div>
       </div>
+
+      <!-- PUMP STATUS -->
+      <div class="card">
+        <div class="card-label">PUMP STATUS</div>
+        <div class="pump-val off" id="pumpText">--</div>
+        <span class="badge" id="pumpBadge">UNKNOWN</span>
+        <div class="info-row">Mode: <span id="modeText">MANUAL</span></div>
+        <div class="info-row">Schedule: <span id="scheduleText">none</span></div>
+        <div class="pump-prog-wrap" id="pumpProgWrap">
+          <div class="pump-prog-label">⏱ PUMP RUNNING</div>
+          <div class="pump-prog-track"><div class="pump-prog-fill" id="pumpProgFill"></div></div>
+        </div>
+      </div>
+
+     <!-- PUMP CONTROL -->
+      <div class="card span2">
+        <div class="card-label">PUMP CONTROL</div>
+        <div class="btn-row">
+          <button class="btn btn-on"   onclick="sendPump(1)">💧 PUMP ON</button>
+          <button class="btn btn-off"  onclick="sendPump(0)">🛑 PUMP OFF</button>
+          <button class="btn btn-auto" onclick="autoMode()">🔄 AUTO MODE</button>
+        </div>
+        <div style="margin-top:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+            <div style="font-size:10px;font-weight:700;letter-spacing:4px;color:var(--text-dim);">AUTO TRIGGER THRESHOLD</div>
+            <div style="font-family:'Space Mono',monospace;font-size:1rem;color:var(--green);">
+              <span id="thresholdVal">40</span>%
+            </div>
+          </div>
+          <input type="range" id="thresholdSlider" min="10" max="80" value="40"
+            oninput="updateThresholdDisplay(this.value)"
+            onchange="sendThreshold(this.value)"
+            style="width:100%;accent-color:var(--green);cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-dim);margin-top:4px;letter-spacing:2px;">
+            <span>10% DRY</span>
+            <span>PUMP TRIGGERS BELOW THIS</span>
+            <span>80% WET</span>
+          </div>
+        </div>
+      </div>
+<!-- SYSTEM INFO -->
+      <div class="card span2">
+        <div class="card-label">SYSTEM INFO</div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:16px;">
+          <div>
+            <div style="font-size:10px;letter-spacing:4px;color:var(--text-dim);margin-bottom:8px;">ESP32 LAST SEEN</div>
+            <div id="lastSeen" style="font-family:'Space Mono',monospace;font-size:1.1rem;color:var(--green);">--</div>
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:4px;color:var(--text-dim);margin-bottom:8px;">WATERINGS TODAY</div>
+            <div id="wateringCount" style="font-family:'Space Mono',monospace;font-size:1.1rem;color:var(--green);">0</div>
+          </div>
+          <div>
+            <div style="font-size:10px;letter-spacing:4px;color:var(--text-dim);margin-bottom:8px;">NEXT SCHEDULED</div>
+            <div id="nextScheduled" style="font-family:'Space Mono',monospace;font-size:1.1rem;color:var(--amber);">none</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- MOISTURE HISTORY CHART -->
+      <div class="card span2">
+        <div class="card-label">MOISTURE HISTORY</div>
+        <div class="chart-inner">
+          <canvas id="moistureChart"></canvas>
+        </div>
+      </div>
+
+      <!-- SCHEDULE -->
+      <div class="card span2">
+        <div class="card-label">SCHEDULE IRRIGATION</div>
+
+        <!-- Day selector pills -->
+        <div class="day-section-label">DAY</div>
+        <div class="day-pills">
+          <div class="day-pill everyday selected" data-day="-1" onclick="selectDay(this)">EVERY DAY</div>
+          <div class="day-pill" data-day="0" onclick="selectDay(this)">SUN</div>
+          <div class="day-pill" data-day="1" onclick="selectDay(this)">MON</div>
+          <div class="day-pill" data-day="2" onclick="selectDay(this)">TUE</div>
+          <div class="day-pill" data-day="3" onclick="selectDay(this)">WED</div>
+          <div class="day-pill" data-day="4" onclick="selectDay(this)">THU</div>
+          <div class="day-pill" data-day="5" onclick="selectDay(this)">FRI</div>
+          <div class="day-pill" data-day="6" onclick="selectDay(this)">SAT</div>
+        </div>
+
+        <!--
+          THIS WEEK / NEXT WEEK toggle.
+          Only appears when a specific weekday is selected (not "Every Day").
+          Solves: "I pressed Sunday — did I mean this Sunday or next Sunday?"
+        -->
+        <div class="week-toggle" id="weekToggle">
+          <span class="week-toggle-label">WHEN:</span>
+          <button class="wtog-btn active"  id="btnThisWeek" onclick="selectWeek('this')">THIS WEEK</button>
+          <button class="wtog-btn"         id="btnNextWeek" onclick="selectWeek('next')">NEXT WEEK</button>
+          <span class="week-toggle-hint" id="weekHint"></span>
+        </div>
+
+        <!-- Time + duration + repeat -->
+        <div class="input-row">
+          <div class="input-group">
+            <label>START TIME</label>
+            <input type="time" id="scheduleTime" oninput="updateWeekHint()">
+          </div>
+          <div class="input-group">
+            <label>DURATION (MIN)</label>
+            <input type="number" id="scheduleDuration" value="5" min="1" max="120">
+          </div>
+          <div class="input-group">
+            <label>REPEAT</label>
+            <select id="repeatMode">
+              <option value="once">ONCE</option>
+              <option value="weekly" selected>WEEKLY</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="sched-btn-row">
+          <button class="btn btn-set"   onclick="setSchedule()">⏰ SET SCHEDULE</button>
+          <button class="btn btn-clear" onclick="clearSchedule()">✕ CLEAR SCHEDULE</button>
+        </div>
+
+        <div class="sched-status" id="scheduleStatus"></div>
+
+        <div class="countdown-box" id="countdownBox">
+          <div class="cd-label" id="cdLabel">WATERING STARTS IN</div>
+          <div class="cd-timer" id="cdTimer">--:--:--</div>
+          <div class="cd-sub"   id="cdSub"></div>
+          <div class="cd-day-badge" id="cdDayBadge"></div>
+        </div>
+      </div>
+
     </div>
 
+    <div class="footer">PLANTGUARD — SMART AGRICULTURE SYSTEM</div>
   </div>
 
-  <div class="last-update">
-    Last update: <span id="lastUpdate">never</span>
-  </div>
+  <script>
+    // ── WebSocket with auto-reconnect ──
+    const WS_URL = "wss://smartagriculturebackend-production-63f7.up.railway.app";
+    let socket;
 
- <script>
-  const socket = new WebSocket("wss://smartagriculturebackend-production-63f7.up.railway.app");
-
-  const connectionText = document.getElementById("connectionText");
-  const moisture = document.getElementById("moisture");
-  const barFill = document.getElementById("barFill");
-  const pumpText = document.getElementById("pumpText");
-  const pumpBadge = document.getElementById("pumpBadge");
-  const modeText = document.getElementById("modeText");
-  const lastUpdate = document.getElementById("lastUpdate");
-
-  socket.onopen = () => {
-    connectionText.innerText = "CONNECTED TO BACKEND";
-    console.log("WebSocket connected");
-  };
-
-  socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log("Received:", data);
-
-    if (data.type === "moisture") {
-      let value = Number(data.value);
-      moisture.innerText = value + "%";
-      barFill.style.width = value + "%";
-      lastUpdate.innerText = new Date().toLocaleTimeString();
+    function connectWS() {
+      socket = new WebSocket(WS_URL);
+      socket.onopen  = () => { connectionText.innerText = "CONNECTED TO BACKEND"; };
+      socket.onclose = () => {
+        connectionText.innerText = "DISCONNECTED — RECONNECTING...";
+        setTimeout(connectWS, 3000);
+      };
+      socket.onerror = () => { connectionText.innerText = "CONNECTION ERROR"; };
+      socket.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          // Use status packet only — avoids double chart push from raw moisture topic
+          if (data.type === "status") {
+            const s = data.value;
+            updateMoisture(Number(s.moisture));
+            updatePumpUI(s.pump, s.mode);
+            if (s.schedule && s.schedule !== "none") scheduleText.innerText = s.schedule;
+            // Reconstruct countdown after page refresh using fields echoed from ESP32
+            if (s.scheduleHour !== undefined && s.scheduleHour !== -1 && scheduledHour === -1) {
+              scheduledDay      = s.scheduleDay;
+              scheduledHour     = s.scheduleHour;
+              scheduledMinute   = s.scheduleMinute;
+              scheduledDuration = s.scheduleDuration;
+              startCountdown();
+            }
+          }
+        } catch(e) { console.warn("Bad WS message:", event.data); }
+      };
     }
 
-    if (data.type === "status") {
-      let state = data.value;
+    // ── DOM refs ──
+    const els = id => document.getElementById(id);
+    const connectionText = els("connectionText");
+    const moistureEl     = els("moisture");
+    const barFill        = els("barFill");
+    const moistureHint   = els("moistureHint");
+    const pumpText       = els("pumpText");
+    const pumpBadge      = els("pumpBadge");
+    const modeText       = els("modeText");
+    const scheduleText   = els("scheduleText");
+    const scheduleStatus = els("scheduleStatus");
+    const countdownBox   = els("countdownBox");
+    const cdLabel        = els("cdLabel");
+    const cdTimer        = els("cdTimer");
+    const cdSub          = els("cdSub");
+    const cdDayBadge     = els("cdDayBadge");
+    const pumpProgWrap   = els("pumpProgWrap");
+    const pumpProgFill   = els("pumpProgFill");
+    const weekToggle     = els("weekToggle");
+    const btnThisWeek    = els("btnThisWeek");
+    const btnNextWeek    = els("btnNextWeek");
+    const weekHint       = els("weekHint");
 
-      moisture.innerText = state.moisture + "%";
-      barFill.style.width = state.moisture + "%";
+    const DAY_NAMES      = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    const DAY_SHORT      = ["SUN","MON","TUE","WED","THU","FRI","SAT"];
 
-      updatePumpUI(state.pump, state.mode);
-      lastUpdate.innerText = new Date().toLocaleTimeString();
+    // ── Schedule state ──
+    let scheduledDay      = -1;
+    let scheduledHour     = -1;
+    let scheduledMinute   = -1;
+    let scheduledDuration = 0;
+    let repeatMode        = "weekly";
+    let weekChoice        = "this";   // "this" | "next"
+    let postRunMode       = false;    // true after first run — ignore weekChoice, use force logic
+    let countdownInterval = null;
+    let pumpRunInterval   = null;
+
+    // ── Mark today's pill on load ──
+    (function markToday() {
+      const todayIdx = new Date().getDay();
+      document.querySelectorAll(".day-pill[data-day]").forEach(p => {
+        if (parseInt(p.dataset.day) === todayIdx) p.classList.add("is-today");
+      });
+    })();
+
+    // ── Day pill selection ──
+    function selectDay(el) {
+      document.querySelectorAll(".day-pill").forEach(p => p.classList.remove("selected"));
+      el.classList.add("selected");
+      const day = parseInt(el.dataset.day);
+      if (day === -1) {
+        weekToggle.classList.remove("visible");
+      } else {
+        weekToggle.classList.add("visible");
+        selectWeek("this");   // reset to "this" when switching days
+        updateWeekHint();
+      }
     }
-  };
 
-  socket.onclose = () => {
-    connectionText.innerText = "DISCONNECTED FROM BACKEND";
-  };
-
-  socket.onerror = () => {
-    connectionText.innerText = "CONNECTION ERROR";
-  };
-
-  function updatePumpUI(pump, mode) {
-    pumpText.innerText = pump;
-    pumpBadge.innerText = pump === "ON" ? "RUNNING" : "STOPPED";
-
-    if (pump === "ON") {
-      pumpBadge.classList.add("on");
-    } else {
-      pumpBadge.classList.remove("on");
+    // ── This / Next week toggle ──
+    function selectWeek(choice) {
+      weekChoice = choice;
+      btnThisWeek.className = "wtog-btn" + (choice === "this" ? " active" : "");
+      btnNextWeek.className = "wtog-btn" + (choice === "next" ? " next-active" : "");
+      updateWeekHint();
     }
 
-    modeText.innerText = mode;
-    lastUpdate.innerText = new Date().toLocaleTimeString();
+    // Show the concrete date so there's zero ambiguity
+    function updateWeekHint() {
+      const day = getSelectedDay();
+      if (day === -1) { weekHint.innerText = ""; return; }
+      const timeVal = els("scheduleTime").value;
+      if (!timeVal)  { weekHint.innerText = ""; return; }
+      const [h, m]  = timeVal.split(":").map(Number);
+      const target  = computeTarget(day, h, m);
+      if (!target)  { weekHint.innerText = ""; return; }
+      weekHint.innerText = "→ " + target.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"});
+    }
+
+    function getSelectedDay() {
+      const sel = document.querySelector(".day-pill.selected");
+      return sel ? parseInt(sel.dataset.day) : -1;
+    }
+
+    // ── Core target-date calculation ──
+    // Returns a Date or null (null = "this week" chosen but time already passed today)
+    function computeTarget(day, hour, minute) {
+      const now    = new Date();
+      const target = new Date();
+      target.setHours(hour, minute, 0, 0);
+
+      if (day === -1) {
+        // Daily: today or tomorrow
+        if (target <= now) target.setDate(target.getDate() + 1);
+        return target;
+      }
+
+      const todayIdx = now.getDay();
+      let daysAhead  = (day - todayIdx + 7) % 7;
+
+      if (weekChoice === "next") {
+        // Always skip to next week's occurrence
+        daysAhead = daysAhead === 0 ? 7 : daysAhead + 7;
+      } else {
+        // "this" week
+        if (daysAhead === 0) {
+          // Selected day IS today
+          if (target <= now) return null;  // time passed — caller must warn
+          // else daysAhead stays 0 → runs today
+        }
+        // daysAhead 1–6: that weekday is still upcoming this week, fine as-is
+      }
+
+      target.setDate(target.getDate() + daysAhead);
+      return target;
+    }
+
+    // Force-next: used by the recurring countdown after the first run completes.
+    // Ignores weekChoice — always finds the genuinely next occurrence.
+    function computeTargetForce(day, hour, minute) {
+      const now    = new Date();
+      const target = new Date();
+      target.setHours(hour, minute, 0, 0);
+      if (day === -1) {
+        if (target <= now) target.setDate(target.getDate() + 1);
+      } else {
+        let daysAhead = (day - now.getDay() + 7) % 7;
+        if (daysAhead === 0 && target <= now) daysAhead = 7;
+        target.setDate(target.getDate() + daysAhead);
+      }
+      return target;
+    }
+
+    // ── Moisture History Chart ──
+    let chart;
+    (function initChart() {
+      const ctx = els("moistureChart").getContext("2d");
+      chart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [{
+            data: [], borderColor: "#00e676", borderWidth: 2, tension: 0.4,
+            fill: true, backgroundColor: "rgba(0,230,118,0.07)",
+            pointRadius: 4, pointBackgroundColor: "#00e676",
+            pointBorderColor: "#020d07", pointBorderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 500 },
+          scales: {
+            y: {
+              min: 0, max: 100,
+              grid: { color: "rgba(0,230,118,0.06)" },
+              ticks: { color: "#6abf7b", font: { size: 10, family: "Space Mono" }, callback: v => v + "%" },
+              border: { color: "rgba(0,230,118,0.1)" }
+            },
+            x: {
+              grid: { display: false },
+              ticks: { color: "#6abf7b", font: { size: 10, family: "Space Mono" } },
+              border: { color: "rgba(0,230,118,0.1)" }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "rgba(2,13,7,0.95)", borderColor: "rgba(0,230,118,0.2)", borderWidth: 1,
+              titleColor: "#6abf7b", bodyColor: "#00e676",
+              titleFont: { family: "Space Mono", size: 10 },
+              bodyFont:  { family: "Space Mono", size: 12 },
+              callbacks: { label: c => c.parsed.y + "%" }
+            }
+          }
+        }
+      });
+    })();
+
+    function pushToChart(value) {
+      const t = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      chart.data.labels.push(t);
+      chart.data.datasets[0].data.push(value);
+      if (chart.data.labels.length > 12) {
+        chart.data.labels.shift(); chart.data.datasets[0].data.shift();
+      }
+      const low = value < 30, mid = value < 60;
+      const colour = low ? "#ff5252" : mid ? "#ffab40" : "#00e676";
+      chart.data.datasets[0].borderColor          = colour;
+      chart.data.datasets[0].pointBackgroundColor = colour;
+      chart.data.datasets[0].backgroundColor      = low  ? "rgba(255,82,82,0.07)"
+                                                  : mid  ? "rgba(255,171,64,0.07)"
+                                                  :        "rgba(0,230,118,0.07)";
+      chart.update();
+    }
+
+    // ── UI updaters ──
+    function updateMoisture(v) { 
+ updateLastSeen(); 
+      moistureEl.innerText = v + "%";
+      barFill.style.width  = v + "%";
+      const low = v < 30, mid = v < 60;
+      moistureEl.className = "moisture-val" + (low ? " low" : mid ? " mid" : "");
+      barFill.className    = "bar-fill"     + (low ? " low" : mid ? " mid" : "");
+      moistureHint.innerText = low ? "🔴 Soil is dry — watering needed"
+                             : mid ? "🟡 Soil moisture is moderate"
+                             :       "🟢 Soil moisture is good";
+      pushToChart(v);
+    }
+
+    function updatePumpUI(pump, mode) {
+      pumpText.innerText  = pump;
+      pumpText.className  = "pump-val" + (pump === "OFF" ? " off" : "");
+      pumpBadge.innerText = pump === "ON" ? "RUNNING" : "STOPPED";
+      pump === "ON" ? pumpBadge.classList.add("on") : pumpBadge.classList.remove("on");
+      modeText.innerText  = mode || "MANUAL";
+    }
+
+    function sendPump(v) {
+      if (!socket || socket.readyState !== 1) { showSchedErr("⚠ NOT CONNECTED"); return; }
+      socket.send(JSON.stringify({ type: "pump_command", value: v === 1 ? "pump_on" : "pump_off" }));
+      updatePumpUI(v === 1 ? "ON" : "OFF", "MANUAL");
+      if (v === 0) stopPumpProgress();
+    }
+
+    function autoMode() {
+      if (!socket || socket.readyState !== 1) { showSchedErr("⚠ NOT CONNECTED"); return; }
+      socket.send(JSON.stringify({ type: "pump_command", value: "auto_mode" }));
+      modeText.innerText = "AUTO";
+    } 
+ function updateThresholdDisplay(val) {
+      els("thresholdVal").innerText = val;
+    }
+
+    function sendThreshold(val) {
+      if (!socket || socket.readyState !== 1) return;
+      socket.send(JSON.stringify({ type: "set_threshold", value: parseInt(val) }));
+    }
+
+    // ── Helpers ──
+    function pad(n) { return n.toString().padStart(2, "0"); }
+    function fmt12(h, m) {
+      return `${h % 12 === 0 ? 12 : h % 12}:${pad(m)} ${h >= 12 ? "PM" : "AM"}`;
+    }
+
+    // ── Set Schedule ──
+    function setSchedule() {
+      const timeVal  = els("scheduleTime").value;
+      const duration = parseInt(els("scheduleDuration").value);
+      const day      = getSelectedDay();
+      repeatMode     = els("repeatMode").value;
+
+      if (!timeVal)                  { showSchedErr("⚠ PLEASE SELECT A TIME"); return; }
+      if (!duration || duration < 1) { showSchedErr("⚠ MINIMUM 1 MINUTE"); return; }
+
+      const [h24, m] = timeVal.split(":").map(Number);
+      const durSec   = duration * 60;
+
+      // Validate before sending
+      const target = computeTarget(day, h24, m);
+      if (target === null) {
+        // Time passed today and user chose "this week"
+        showSchedErr("⚠ THAT TIME ALREADY PASSED TODAY — CHOOSE NEXT WEEK OR PICK A FUTURE TIME");
+        // Auto-highlight the next week button to hint the fix
+        selectWeek("next");
+        return;
+      }
+
+      if (socket && socket.readyState === 1) {
+        socket.send(JSON.stringify({
+          type: "set_schedule", day, hour: h24, minute: m, duration: durSec, repeat: repeatMode
+        }));
+      }
+
+      scheduledDay      = day;
+      scheduledHour     = h24;
+      scheduledMinute   = m;
+      scheduledDuration = durSec;
+      postRunMode       = false;
+
+      const dayLabel    = day === -1 ? "EVERY DAY" : DAY_NAMES[day].toUpperCase();
+      const weekLabel   = day === -1 ? "" : (weekChoice === "next" ? " (NEXT WEEK)" : " (THIS WEEK)");
+      const timeLabel   = fmt12(h24, m);
+      const dateLabel   = target.toLocaleDateString([], { month:"short", day:"numeric" });
+      const repeatLabel = repeatMode === "weekly" ? "WEEKLY" : "ONCE";
+
+      scheduleStatus.style.color = "#ffab40";
+      scheduleStatus.innerText   = `⏰ ${dayLabel}${weekLabel} — ${dateLabel} AT ${timeLabel} — ${duration}MIN — ${repeatLabel}`;
+      scheduleText.innerText     = `${dayLabel} ${timeLabel} (${duration}min)`;
+
+      startCountdown();
+    }
+
+    function clearSchedule() {
+      if (socket && socket.readyState === 1)
+        socket.send(JSON.stringify({ type: "clear_schedule" }));
+      scheduledHour = -1;
+      scheduleStatus.style.color = "#ff5252";
+      scheduleStatus.innerText   = "✕ SCHEDULE CLEARED";
+      scheduleText.innerText     = "none";
+      stopCountdown();
+      stopPumpProgress();
+    }
+
+    function showSchedErr(msg) {
+      scheduleStatus.style.color = "#ff5252";
+      scheduleStatus.innerText   = msg;
+    }
+
+    // ── Countdown ──
+    function startCountdown() {
+      stopCountdown();
+      countdownBox.classList.add("active");
+      cdLabel.innerText = "WATERING STARTS IN";
+      cdTimer.classList.remove("running");
+
+      countdownInterval = setInterval(() => {
+        if (scheduledHour === -1) { stopCountdown(); return; }
+
+        // After first run completes use force logic; during initial countdown respect weekChoice
+        const target = postRunMode
+          ? computeTargetForce(scheduledDay, scheduledHour, scheduledMinute)
+          : (computeTarget(scheduledDay, scheduledHour, scheduledMinute) ||
+             computeTargetForce(scheduledDay, scheduledHour, scheduledMinute));
+
+        const diff = target - new Date();
+
+        // Day badge with concrete date
+        cdDayBadge.innerText = scheduledDay === -1
+          ? "📅 DAILY"
+          : `📅 ${DAY_NAMES[target.getDay()].toUpperCase()} ${target.toLocaleDateString([], {month:"short", day:"numeric"})}`;
+
+        if (diff <= 1000) {
+          cdLabel.innerText = "🌊 WATERING NOW";
+          cdTimer.innerText = "00:00:00";
+          cdTimer.classList.add("running");
+          cdSub.innerText   = `RUNS FOR ${scheduledDuration / 60} MIN`;
+          startPumpProgress(scheduledDuration);
+          return;
+        }
+
+        const totalSec = Math.floor(diff / 1000);
+        const h  = Math.floor(totalSec / 3600);
+        const mn = Math.floor((totalSec % 3600) / 60);
+        const s  = totalSec % 60;
+        cdTimer.innerText = `${pad(h)}:${pad(mn)}:${pad(s)}`;
+        cdSub.innerText   = `SCHEDULED FOR ${fmt12(scheduledHour, scheduledMinute)}`;
+      }, 1000);
+    }
+
+    function stopCountdown() {
+      clearInterval(countdownInterval); countdownInterval = null;
+      countdownBox.classList.remove("active");
+      cdTimer.innerText    = "--:--:--";
+      cdSub.innerText      = "";
+      cdDayBadge.innerText = "";
+    }
+
+    // ── Pump progress bar ──
+    function startPumpProgress(durSec) {
+      stopPumpProgress();
+      pumpProgWrap.classList.add("active"); 
+wateringCount++;
+els("wateringCount").innerText = wateringCount;
+      pumpProgFill.style.width = "100%";
+      let elapsed = 0;
+
+      pumpRunInterval = setInterval(() => {
+        elapsed++;
+        pumpProgFill.style.width = Math.max(0, ((durSec - elapsed) / durSec) * 100) + "%";
+
+        if (elapsed >= durSec) {
+          stopPumpProgress();
+
+          if (repeatMode === "weekly" || scheduledDay !== -1) {
+            // Switch to force mode — weekChoice no longer applies for subsequent cycles
+            postRunMode = true;
+            cdLabel.innerText = "WATERING STARTS IN";
+            cdTimer.classList.remove("running");
+            scheduleStatus.style.color = "#00e676";
+            scheduleStatus.innerText   = "✅ WATERING COMPLETE — NEXT CYCLE SCHEDULED";
+          } else {
+            // One-time: clear everything
+            stopCountdown();
+            scheduleStatus.style.color = "#00e676";
+            scheduleStatus.innerText   = "✅ SCHEDULED WATERING COMPLETE";
+            scheduleText.innerText     = "none";
+            scheduledHour              = -1;
+          }
+        }
+      }, 1000);
+    }
+
+    function stopPumpProgress() {
+      clearInterval(pumpRunInterval); pumpRunInterval = null;
+      pumpProgWrap.classList.remove("active");
+      pumpProgFill.style.width = "100%";
+    }
+
+    // ── Boot ── 
+// ── System Info logic ──
+let lastSeenTime   = null;
+let wateringCount  = 0;
+let lastCountReset = new Date().toDateString();
+
+function updateLastSeen() {
+  lastSeenTime = new Date();
+}
+
+function updateNextScheduled() {
+  const el = els("nextScheduled");
+  if (scheduledHour === -1) { el.innerText = "none"; return; }
+  const target = postRunMode
+    ? computeTargetForce(scheduledDay, scheduledHour, scheduledMinute)
+    : (computeTarget(scheduledDay, scheduledHour, scheduledMinute) ||
+       computeTargetForce(scheduledDay, scheduledHour, scheduledMinute));
+  if (!target) { el.innerText = "none"; return; }
+  el.innerText = target.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"})
+               + " " + fmt12(scheduledHour, scheduledMinute);
+}
+
+setInterval(() => {
+  // Reset watering count at midnight
+  const today = new Date().toDateString();
+  if (today !== lastCountReset) {
+    wateringCount  = 0;
+    lastCountReset = today;
+    els("wateringCount").innerText = 0;
   }
-
-  function sendPump(value) {
-    console.log("Button clicked:", value);
-
-    const command = value === 1 ? "pump_on" : "pump_off";
-
-    socket.send(JSON.stringify({
-      type: "pump_command",
-      value: command
-    }));
-
-    if (value === 1) {
-      updatePumpUI("ON", "MANUAL");
-    } else {
-      updatePumpUI("OFF", "MANUAL");
-    }
+  // Last seen
+  if (lastSeenTime) {
+    const secAgo = Math.floor((new Date() - lastSeenTime) / 1000);
+    els("lastSeen").innerText = secAgo < 60
+      ? secAgo + "s ago"
+      : Math.floor(secAgo / 60) + "m ago";
+    // Flag if ESP32 went silent
+    els("lastSeen").style.color = secAgo > 15 ? "var(--red)" : "var(--green)";
   }
-
-  function autoMode() {
-    console.log("Auto mode clicked");
-
-    socket.send(JSON.stringify({
-      type: "pump_command",
-      value: "auto_mode"
-    }));
-
-    modeText.innerText = "AUTO";
-    lastUpdate.innerText = new Date().toLocaleTimeString();
-  }
-</script> 
-
-
+  // Next scheduled
+  updateNextScheduled();
+}, 1000);
+    connectWS();
+  </script>
 </body>
 </html>
